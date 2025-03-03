@@ -7,17 +7,17 @@ LOGIN = xtarag01
 SERVER = merlin.fit.vutbr.cz
 SERVER_DIR = ~/FLP/project
 ZIP_FILE = $(LOGIN).zip
-SRC_FILES = main.hs
+SRC_FILE = Main.hs
 
 GHC = ghc
-GHCFLAGS = -Wall
+GHCFLAGS = -Wall -O2
 
 .PHONY = all run clean pack upload
 
 all: $(EXECUTABLE)
 
 $(EXECUTABLE):
-	$(GHC) $(GHCFLAGS) $(SRC_FILES) -o $(EXECUTABLE)
+	$(GHC) $(GHCFLAGS) --make $(SRC_FILE) -o $(EXECUTABLE)
 
 run: $(EXECUTABLE)
 	./$(EXECUTABLE) $(ARGS)

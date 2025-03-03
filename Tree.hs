@@ -1,3 +1,12 @@
+module Tree
+( treeFromString
+, findParent
+, countSpaces
+, leftRight
+, makeInputs
+, buildTree
+) where
+
 data DecisionTree a b =
     EmptyTree |
     Leaf b    |
@@ -27,9 +36,6 @@ insertIntoTree (Leaf b) _ = Leaf b
 insertIntoTree (Node x left right) input
     | (fst x) == (parent input) = if (side input) == RightTree then (Node x left (tree input)) else (Node x (tree input) right)
     | (fst x) /= (parent input) = Node x (insertIntoTree left input) (insertIntoTree right input)
-
-makeTuple :: String -> (Int, DecisionTree (Int, Float) String)
-makeTuple s = (countSpaces s, treeFromString s)
 
 countSpaces :: String -> Int
 countSpaces "" = 0

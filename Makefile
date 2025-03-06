@@ -18,6 +18,7 @@ all: $(EXECUTABLE)
 
 $(EXECUTABLE):
 	$(GHC) $(GHCFLAGS) --make $(SRC_FILE) -o $(EXECUTABLE)
+	rm -f *.o *.hi
 
 run: $(EXECUTABLE)
 	./$(EXECUTABLE) $(ARGS)

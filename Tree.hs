@@ -1,10 +1,5 @@
 module Tree
-( treeFromString
-, findParent
-, countSpaces
-, leftRight
-, makeInputs
-, buildTree
+( buildTree
 ) where
 
 data DecisionTree a b =
@@ -13,13 +8,8 @@ data DecisionTree a b =
     Node a (DecisionTree a b) (DecisionTree a b)
     deriving (Eq, Show, Read)
 
-data TreeSide = Root | LeftTree | RightTree
+data TreeSide = LeftTree | RightTree
     deriving (Eq, Ord, Show, Read, Bounded, Enum)
-
-data InputLine = InputLine { tree :: DecisionTree (Int, Float) String
-                           , parent :: Int
-                           , side :: TreeSide
-                           } deriving (Show)
 
 createNode :: a -> DecisionTree a b
 createNode x = Node x EmptyTree EmptyTree
@@ -27,55 +17,20 @@ createNode x = Node x EmptyTree EmptyTree
 createLeaf :: b -> DecisionTree a b
 createLeaf x = Leaf x
 
-insertIntoTree :: DecisionTree (Int, Float) String -> InputLine -> DecisionTree (Int, Float) String
-insertIntoTree EmptyTree input =
-    if (side input) == Root
-    then tree input
-    else EmptyTree
-insertIntoTree (Leaf b) _ = Leaf b
-insertIntoTree (Node x left right) input
-    | (fst x) == (parent input) = if (side input) == RightTree then (Node x left (tree input)) else (Node x (tree input) right)
-    | (fst x) /= (parent input) = Node x (insertIntoTree left input) (insertIntoTree right input)
+insertIntoTree :: DecisionTree (Int, Float) String -> (DecisionTree (Int, Float) String, [TreeSide]) -> DecisionTree (Int, Float) String
+insertIntoTree EmptyTree (tree, []) = tree
+insertIntoTree (Node _ _ _) (tree, []) = tree
+insertIntoTree (Node x left right) (tree, (y:ys))
+    | y == LeftTree = Node x (insertIntoTree left (tree, ys)) right
+    | y == RightTree = Node x left (insertIntoTree right (tree, ys))
+insertIntoTree _ _ = EmptyTree
 
-countSpaces :: String -> Int
-countSpaces "" = 0
-countSpaces (x : xs)
-    | x == ' ' = 1 + countSpaces xs
-    | x /= ' ' = 0
+countSpaces :: (Num a) => String -> a
+countSpaces (' ' : xs) = 1 + countSpaces xs
+countSpaces _ = 0
 
 dropSpaces :: String -> String
 dropSpaces s = drop (countSpaces s) s
-
-treeFromString :: String -> DecisionTree (Int, Float) String
-treeFromString s =
-    if (take 4 $ dropSpaces s) == "Node"
-    then createNode $ parseNode s
-    else createLeaf $ parseLeaf s
-
-leftRight :: [Int] -> [TreeSide]
-leftRight [] = []
-leftRight (x : xs) = Root : (leftRight' xs [2 .. (maximum xs)])
-
-leftRight' :: (Eq a) => [a] -> [a] -> [TreeSide]
-leftRight' [] first = []
-leftRight' (x : xs) first =
-    if x `elem` first
-    then LeftTree  : (leftRight' xs $ deleteElem x first)
-    else RightTree : (leftRight' xs $ deleteElem x first)
-
-deleteElem :: (Eq a) => a -> [a] -> [a]
-deleteElem _ [] = []
-deleteElem n (x : xs)
-    | x == n = deleteElem n xs
-    | x /= n = x : (deleteElem n xs)
-
-findParent :: [(String, Int)] -> [Int]
-findParent [] = []
-findParent (x : y : z : xs) =
-    if (snd y) == (snd z)
-    then (fst $ parseNode $ (fst x)) : (fst $ parseNode $ (fst x)) : (findParent (z : xs)) 
-    else (fst $ parseNode $ (fst x)) : (findParent (y : z : xs))
-findParent (x : xs) = []
 
 parseNode :: String -> (Int, Float)
 parseNode s = read ('(' : (drop 6 (dropSpaces s)) ++ ")") :: (Int, Float)
@@ -83,9 +38,27 @@ parseNode s = read ('(' : (drop 6 (dropSpaces s)) ++ ")") :: (Int, Float)
 parseLeaf :: String -> String
 parseLeaf s = drop 6 $ dropSpaces s
 
-makeInputs :: [DecisionTree (Int, Float) String] -> [Int] -> [TreeSide] -> [InputLine]
-makeInputs [] [] [] = []
-makeInputs (a : as) (b : bs) (c : cs) = (InputLine a b c) : (makeInputs as bs cs)
+treeFromString :: String -> DecisionTree (Int, Float) String
+treeFromString s =
+    if (take 4 $ dropSpaces s) == "Node"
+    then createNode $ parseNode s
+    else createLeaf $ parseLeaf s
 
-buildTree :: (Foldable a) => a InputLine -> DecisionTree (Int, Float) String
-buildTree inputs = foldl insertIntoTree EmptyTree inputs
+findPaths :: [Int] -> [TreeSide] -> Int -> [[TreeSide]]
+findPaths [] _ _ = []
+findPaths (0 : xs) _ _ = [] : (findPaths xs [] 0)
+findPaths (x : xs) path before
+    | before == x = eqPath : (findPaths xs eqPath x)
+    | before < x  = upPath : (findPaths xs upPath x)
+    | before > x  = doPath : (findPaths xs doPath x)
+    where
+    eqPath = (init path) ++ [RightTree]
+    upPath = path ++ [LeftTree]
+    doPath = (take ((length path) - (before - x) - 1) path) ++ [RightTree]
+findPaths _ _ _ = []
+
+buildTree :: [String] -> DecisionTree (Int, Float) String
+buildTree inputs = foldl insertIntoTree EmptyTree $ zip trees paths
+    where
+    trees = map treeFromString inputs
+    paths = findPaths (map ((`div` 2) . countSpaces) inputs) [] 0

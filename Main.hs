@@ -14,18 +14,17 @@ dispatch = [ ("-1", task1)
 main :: IO ()
 main = do
     (command:args) <- getArgs
-    let (Just action) = lookup command dispatch
-    action args
+    case lookup command dispatch of Just action -> action args
+                                    Nothing -> error "error: Argument not found"
 
 task1 :: [String] -> IO ()
 task1 [] = error "error: No arguments"
 task1 [treeFile, entryFile] = do
     treeContents <- readFile treeFile
     entryContents <- readFile entryFile
-    let treeInputs = lines treeContents
-    let entries = lines entryContents
-    print $ buildTree treeInputs
-    print entries
+    let tree = buildTree $ lines treeContents
+    let newData = map parseEntry $ lines entryContents
+    putStr $ unlines $ findClasses tree newData
 task1 _ = error "error: Wrong number of arguments"
 
 task2 :: [String] -> IO ()

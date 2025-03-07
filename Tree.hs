@@ -1,6 +1,14 @@
+-- Project: Decision tree
+-- Author: Marián Tarageľ (xtarag01)
+-- Year: 2025
+
 module Tree
 ( buildTree
+, parseEntry
+, findClasses
 ) where
+
+import Data.List.Split
 
 data DecisionTree a b =
     EmptyTree |
@@ -63,17 +71,21 @@ buildTree inputs = foldl insertIntoTree EmptyTree $ zip trees paths
     trees = map treeFromString inputs
     paths = findPaths (map ((`div` 2) . countSpaces) inputs) [] 0
 
-parseEntry :: [String] -> [Double]
-parseEntry [_] = []
-parseEntry s = map read $ s :: [Double]
+parseEntry :: String -> [Float]
+parseEntry [] = []
+parseEntry s = map read (splitOn "," s) :: [Float]
 
 findClass :: (Ord a) => DecisionTree (Int, a) [b] -> [a] -> [b]
 findClass _ [] = []
-findClass (Leaf a) entry = a
+findClass (Leaf a) _ = a
 findClass (Node x left right) entry
     | threshold > value = findClass left entry
     | threshold < value = findClass right entry
     where
     threshold = snd x
     value = entry !! (fst x)
+findClass _ _ = []
 
+findClasses :: (Ord a) => DecisionTree (Int, a) [b] -> [[a]] -> [[b]]
+findClasses _ [] = []
+findClasses tree (x : xs) = (findClass tree x) : findClasses tree xs

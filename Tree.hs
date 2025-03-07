@@ -62,3 +62,18 @@ buildTree inputs = foldl insertIntoTree EmptyTree $ zip trees paths
     where
     trees = map treeFromString inputs
     paths = findPaths (map ((`div` 2) . countSpaces) inputs) [] 0
+
+parseEntry :: [String] -> [Double]
+parseEntry [_] = []
+parseEntry s = map read $ s :: [Double]
+
+findClass :: (Ord a) => DecisionTree (Int, a) [b] -> [a] -> [b]
+findClass _ [] = []
+findClass (Leaf a) entry = a
+findClass (Node x left right) entry
+    | threshold > value = findClass left entry
+    | threshold < value = findClass right entry
+    where
+    threshold = snd x
+    value = entry !! (fst x)
+

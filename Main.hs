@@ -28,11 +28,9 @@ task1 [treeFile, entryFile] = do
 task1 _ = error "error: Wrong number of arguments"
 
 task2 :: [String] -> IO ()
-task2 [] = error "chybka"
+task2 [] = error "error: No arguments"
 task2 [fileName] = do
-    handle <- openFile fileName ReadMode
-    contents <- hGetContents handle
+    contents <- readFile fileName
     let inputs = lines contents
-    print $ buildTree inputs
-    hClose handle
-task2 _ = error "chybka"
+    print inputs
+task2 _ = error "error: Wrong number of arguments"

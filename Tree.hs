@@ -8,7 +8,9 @@ module Tree
 , findClasses
 ) where
 
-import Data.List.Split
+import Data.List.Split (splitOn)
+import Data.List (sort, sortBy, nub)
+import Data.Function (on)
 
 data DecisionTree a b =
     EmptyTree |
@@ -18,6 +20,11 @@ data DecisionTree a b =
 
 data TreeSide = LeftTree | RightTree
     deriving (Eq, Ord, Show, Read, Bounded, Enum)
+
+data GiniIndex = GiniIndex { gini :: Float
+                           , threshold :: Float
+                           , index :: Int
+                           } deriving (Show)
 
 createNode :: a -> DecisionTree a b
 createNode x = Node x EmptyTree EmptyTree
@@ -89,3 +96,80 @@ findClass _ _ = []
 findClasses :: (Ord a) => DecisionTree (Int, a) [b] -> [[a]] -> [[b]]
 findClasses _ [] = []
 findClasses tree (x : xs) = (findClass tree x) : findClasses tree xs
+
+getClasses :: String -> String
+getClasses [] = []
+getClasses s = last $ splitOn "," s
+
+getValues :: String -> [Float]
+getValues [] = []
+getValues s = map read (init $ splitOn "," s) :: [Float]
+
+getFeature :: [[Float]] -> Int -> [Float]
+getFeature [] _ = []
+getFeature (x : xs) n = (x !! n) : getFeature xs n
+
+findMidpoints :: [Float] -> [Float]
+findMidpoints [] = []
+findMidpoints (x : y : ys) = (x + y) / 2 : (findMidpoints (y:ys))
+findMidpoints (x : ys) = []
+
+sortFst :: Ord a => [(a, b)] -> [(a, b)]
+sortFst xs = sortBy (compare `on` fst) xs
+
+sortSnd :: Ord b => [(a, b)] -> [(a, b)]
+sortSnd xs = sortBy (compare `on` snd) xs
+
+findMin :: [[GiniIndex]] -> GiniIndex -> (Int, Float)
+findMin [] m = (index m, threshold m)
+findMin ((y : ys) : xs) m
+    | gini y < gini m = findMin xs y
+    | otherwise = findMin xs m
+
+calcAllGinis :: [String] -> [[Float]] -> Int -> [[GiniIndex]]
+calcAllGinis [] _ _ = []
+calcAllGinis _ [] _ = []
+calcAllGinis xs allValues@(y : ys) n
+    | numFeatures > n = (sortBy (compare `on` gini) $ calcFeatureGinis (zip values xs) uniqClasses midpoints n) : calcAllGinis xs allValues (n + 1)
+    | otherwise = []
+    where
+    values = getFeature allValues n
+    uniqClasses = nub xs
+    midpoints = findMidpoints $ sort values
+    numFeatures = length y
+
+calcFeatureGinis :: [(Float, String)] -> [String] -> [Float] -> Int -> [GiniIndex]
+calcFeatureGinis _ _ [] _ = []
+calcFeatureGinis xs c (y : ys) n = (GiniIndex (calcSplitGini xs c y) y n) : calcFeatureGinis xs c ys n
+
+calcSplitGini :: [(Float, String)] -> [String] -> Float -> Float
+calcSplitGini [] _ _ = 0.0
+calcSplitGini xs c midpoint = l / t * (calcGini $ countClasses c left) + r / t * (calcGini $ countClasses c right)
+    where
+    left = [a | a <- xs, (fst a) <= midpoint]
+    right = [a | a <- xs, (fst a) > midpoint]
+    l = fromIntegral (length left) :: Float
+    r = fromIntegral (length right) :: Float
+    t = l + r
+
+calcGini :: [Int] -> Float
+calcGini [] = 0.0
+calcGini xs = 1.0 - (sumClasses xs $ sum xs)
+
+sumClasses :: [Int] -> Int -> Float
+sumClasses [] _ = 0.0
+sumClasses _ 0 = 1.0
+sumClasses (x : xs) t = ((xf / tf) ** 2) + sumClasses xs t
+    where
+    xf = fromIntegral x :: Float
+    tf = fromIntegral t :: Float
+
+countClasses :: [String] -> [(Float, String)] -> [Int]
+countClasses [] _ = []
+countClasses (c : cs) d = countClass c d : (countClasses cs d)
+
+countClass :: String -> [(Float, String)] -> Int
+countClass _ [] = 0
+countClass c (x : xs)
+    | c == snd x = 1 + (countClass c xs)
+    | c /= snd x = countClass c xs

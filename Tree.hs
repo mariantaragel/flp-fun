@@ -9,14 +9,14 @@ module Tree
 ) where
 
 import Data.List.Split (splitOn)
-import Data.List (sort, sortBy, nub)
+import Data.List (sort, sortBy, nub, minimumBy)
 import Data.Function (on)
 
 data DecisionTree a b =
     EmptyTree |
     Leaf b    |
     Node a (DecisionTree a b) (DecisionTree a b)
-    deriving (Eq, Show, Read)
+    deriving (Eq, Read)
 
 data TreeSide = LeftTree | RightTree
     deriving (Eq, Ord, Show, Read, Bounded, Enum)
@@ -25,6 +25,20 @@ data GiniIndex = GiniIndex { gini :: Float
                            , threshold :: Float
                            , index :: Int
                            } deriving (Show)
+
+data TrainData = TrainData { values :: [Float]
+                           , category :: String
+                           } deriving (Show)
+
+instance (Show a, Show b) => Show (DecisionTree a b) where
+    showsPrec _ EmptyTree = (++) "."
+    showsPrec _ (Leaf x) = (++) "Leaf: " . shows x
+    showsPrec _ (Node a (Leaf x) (Leaf y)) =
+        ((++) "Node: ") . shows a . ((++) "\n  Leaf: ") . shows x . ((++) "\n  Leaf: ") . shows y
+    showsPrec _ (Node a (Leaf x) r) =
+        ((++) "Node: ") . shows a . ((++) "\n  Leaf: ") . shows x . ((++) "\n  ") . shows r
+    showsPrec _ (Node a l (Leaf x)) = (++) ""
+    showsPrec _ (Node a l r) = (++) ""
 
 createNode :: a -> DecisionTree a b
 createNode x = Node x EmptyTree EmptyTree
@@ -86,8 +100,8 @@ findClass :: (Ord a) => DecisionTree (Int, a) [b] -> [a] -> [b]
 findClass _ [] = []
 findClass (Leaf a) _ = a
 findClass (Node x left right) entry
-    | threshold > value = findClass left entry
-    | threshold < value = findClass right entry
+    | value <= threshold = findClass left entry
+    | value > threshold = findClass right entry
     where
     threshold = snd x
     value = entry !! (fst x)
@@ -97,46 +111,58 @@ findClasses :: (Ord a) => DecisionTree (Int, a) [b] -> [[a]] -> [[b]]
 findClasses _ [] = []
 findClasses tree (x : xs) = (findClass tree x) : findClasses tree xs
 
-getClasses :: String -> String
-getClasses [] = []
-getClasses s = last $ splitOn "," s
+----------------------------------------------------------------------------
+
+getClass :: String -> String
+getClass [] = []
+getClass s = last $ splitOn "," s
 
 getValues :: String -> [Float]
 getValues [] = []
 getValues s = map read (init $ splitOn "," s) :: [Float]
 
-getFeature :: [[Float]] -> Int -> [Float]
+parseTrainData :: String -> TrainData
+parseTrainData [] = TrainData [] ""
+parseTrainData xs = TrainData (getValues xs) (getClass xs)
+
+getFeature :: [TrainData] -> Int -> [Float]
 getFeature [] _ = []
-getFeature (x : xs) n = (x !! n) : getFeature xs n
+getFeature (x : xs) n = 
+    if n < (length $ values x) 
+    then ((values x) !! n) : getFeature xs n
+    else error "error: index out of list"
 
 findMidpoints :: [Float] -> [Float]
 findMidpoints [] = []
 findMidpoints (x : y : ys) = (x + y) / 2 : (findMidpoints (y:ys))
 findMidpoints (x : ys) = []
 
-sortFst :: Ord a => [(a, b)] -> [(a, b)]
-sortFst xs = sortBy (compare `on` fst) xs
+findMinGini :: [GiniIndex] -> (Int, Float)
+findMinGini xs = (index minGini, threshold minGini)
+    where
+    minGini = minimumBy (compare `on` gini) xs
 
-sortSnd :: Ord b => [(a, b)] -> [(a, b)]
-sortSnd xs = sortBy (compare `on` snd) xs
+createTree :: [TrainData] -> DecisionTree (Int, Float) String
+createTree [] = EmptyTree
+createTree tdata@(x : xs)
+    | all (== (category x)) $ map category xs = Leaf (category x)
+    | otherwise = Node splitScore (createTree leftValues) (createTree rightValues)
+    where
+    splitScore = findMinGini $ calcAllGinis tdata 0
+    leftValues = [a | a <- tdata, ((values a) !! (fst splitScore)) <= (snd splitScore)]
+    rightValues = [a | a <- tdata, ((values a) !! (fst splitScore)) > (snd splitScore)]
 
-findMin :: [[GiniIndex]] -> GiniIndex -> (Int, Float)
-findMin [] m = (index m, threshold m)
-findMin ((y : ys) : xs) m
-    | gini y < gini m = findMin xs y
-    | otherwise = findMin xs m
-
-calcAllGinis :: [String] -> [[Float]] -> Int -> [[GiniIndex]]
-calcAllGinis [] _ _ = []
-calcAllGinis _ [] _ = []
-calcAllGinis xs allValues@(y : ys) n
-    | numFeatures > n = (sortBy (compare `on` gini) $ calcFeatureGinis (zip values xs) uniqClasses midpoints n) : calcAllGinis xs allValues (n + 1)
+calcAllGinis :: [TrainData] -> Int -> [GiniIndex]
+calcAllGinis [] _  = []
+calcAllGinis tdata@(x : xs) n
+    | n < numFeatures = (calcFeatureGinis (zip vals categories) uniqClasses midpoints n) ++ calcAllGinis tdata (n + 1)
     | otherwise = []
     where
-    values = getFeature allValues n
-    uniqClasses = nub xs
-    midpoints = findMidpoints $ sort values
-    numFeatures = length y
+    vals = getFeature tdata n
+    categories = map category tdata
+    uniqClasses = nub $ categories
+    midpoints = findMidpoints $ sort vals
+    numFeatures = length $ values x
 
 calcFeatureGinis :: [(Float, String)] -> [String] -> [Float] -> Int -> [GiniIndex]
 calcFeatureGinis _ _ [] _ = []

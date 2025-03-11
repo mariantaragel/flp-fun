@@ -1,3 +1,5 @@
+public-tests/
+venv/
 *.txt
 flp-fun
 dist

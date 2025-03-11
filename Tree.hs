@@ -6,10 +6,12 @@ module Tree
 ( buildTree
 , parseEntry
 , findClasses
+, parseTrainData
+, createTree
 ) where
 
 import Data.List.Split (splitOn)
-import Data.List (sort, sortBy, nub, minimumBy)
+import Data.List (sort, nub, minimumBy)
 import Data.Function (on)
 
 data DecisionTree a b =
@@ -31,14 +33,15 @@ data TrainData = TrainData { values :: [Float]
                            } deriving (Show)
 
 instance (Show a, Show b) => Show (DecisionTree a b) where
-    showsPrec _ EmptyTree = (++) "."
-    showsPrec _ (Leaf x) = (++) "Leaf: " . shows x
-    showsPrec _ (Node a (Leaf x) (Leaf y)) =
-        ((++) "Node: ") . shows a . ((++) "\n  Leaf: ") . shows x . ((++) "\n  Leaf: ") . shows y
-    showsPrec _ (Node a (Leaf x) r) =
-        ((++) "Node: ") . shows a . ((++) "\n  Leaf: ") . shows x . ((++) "\n  ") . shows r
-    showsPrec _ (Node a l (Leaf x)) = (++) ""
-    showsPrec _ (Node a l r) = (++) ""
+    showsPrec _ EmptyTree = showString "EmptyTree"
+    showsPrec _ (Leaf x) = showString "Leaf: " . shows x
+    showsPrec p (Node a l r) =
+        showString "Node: " . shows a . showString "\n" . showTree (p + 1) l . showString "\n" . showTree (p + 1) r
+        where
+        showTree i EmptyTree = showString (indent i) . showString "EmptyTree"
+        showTree i (Leaf x) = showString (indent i) . showString "Leaf: " . shows x
+        showTree i (Node val left right) = showString (indent i) . showsPrec i (Node val left right)
+        indent n = replicate (n * 2) ' '
 
 createNode :: a -> DecisionTree a b
 createNode x = Node x EmptyTree EmptyTree
@@ -100,18 +103,16 @@ findClass :: (Ord a) => DecisionTree (Int, a) [b] -> [a] -> [b]
 findClass _ [] = []
 findClass (Leaf a) _ = a
 findClass (Node x left right) entry
-    | value <= threshold = findClass left entry
-    | value > threshold = findClass right entry
+    | value <= splitScore = findClass left entry
+    | value > splitScore = findClass right entry
     where
-    threshold = snd x
+    splitScore = snd x
     value = entry !! (fst x)
 findClass _ _ = []
 
 findClasses :: (Ord a) => DecisionTree (Int, a) [b] -> [[a]] -> [[b]]
 findClasses _ [] = []
 findClasses tree (x : xs) = (findClass tree x) : findClasses tree xs
-
-----------------------------------------------------------------------------
 
 getClass :: String -> String
 getClass [] = []
@@ -135,7 +136,7 @@ getFeature (x : xs) n =
 findMidpoints :: [Float] -> [Float]
 findMidpoints [] = []
 findMidpoints (x : y : ys) = (x + y) / 2 : (findMidpoints (y:ys))
-findMidpoints (x : ys) = []
+findMidpoints (_ : _) = []
 
 findMinGini :: [GiniIndex] -> (Int, Float)
 findMinGini xs = (index minGini, threshold minGini)
@@ -154,7 +155,7 @@ createTree tdata@(x : xs)
 
 calcAllGinis :: [TrainData] -> Int -> [GiniIndex]
 calcAllGinis [] _  = []
-calcAllGinis tdata@(x : xs) n
+calcAllGinis tdata@(x : _) n
     | n < numFeatures = (calcFeatureGinis (zip vals categories) uniqClasses midpoints n) ++ calcAllGinis tdata (n + 1)
     | otherwise = []
     where
@@ -199,3 +200,4 @@ countClass _ [] = 0
 countClass c (x : xs)
     | c == snd x = 1 + (countClass c xs)
     | c /= snd x = countClass c xs
+countClass _ _ = 0

@@ -3,7 +3,6 @@
 -- Year: 2025
 
 import System.Environment
-import System.IO
 import Tree
 
 dispatch :: [(String, [String] -> IO ())]
@@ -31,6 +30,6 @@ task2 :: [String] -> IO ()
 task2 [] = error "error: No arguments"
 task2 [fileName] = do
     contents <- readFile fileName
-    let inputs = lines contents
-    print inputs
+    let tree = createTree $ map parseTrainData $ lines contents
+    print tree
 task2 _ = error "error: Wrong number of arguments"

@@ -10,7 +10,7 @@ ZIP_FILE = $(LOGIN).zip
 SRC_FILE = Main.hs
 
 GHC = ghc
-GHCFLAGS = -Wall -O2
+GHCFLAGS = -Wall
 
 .PHONY = all run clean pack upload
 
@@ -32,7 +32,7 @@ $(ZIP_FILE): *.hs Makefile
 	zip $@ $^
 
 upload: $(ZIP_FILE)
-	scp $^ $(SERVER):$(SERVER_DIR)
+	scp $^ $(LOGIN)@$(SERVER):$(SERVER_DIR)
 	ssh $(LOGIN)@$(SERVER) \
 		"cd $(SERVER_DIR) && unzip $^ && make"
 
